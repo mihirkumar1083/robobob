@@ -21,7 +21,7 @@ public class QuestionServiceTest {
     private QuestionRepository questionRepository; // Mocking the QuestionRepository
 
     @InjectMocks
-    private QuestionService questionService; // The service we're testing
+    private QuestionServiceImpl questionService; // The service we're testing
 
     @BeforeEach
     public void setUp() {
