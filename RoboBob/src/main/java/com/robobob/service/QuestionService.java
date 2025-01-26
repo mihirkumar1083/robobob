@@ -1,104 +1,77 @@
-package com.robobob.service;
+package com.robobob.repository;
 
-import java.util.regex.Pattern;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Repository;
 
-import com.robobob.exception.ArithmeticEvaluationException;
-import com.robobob.exception.InvalidQuestionException;
-import com.robobob.repository.QuestionRepository;
+import com.robobob.exception.QuestionsMasterDataNotFoundException;
 
-/**
- * Service class for processing questions and performing arithmetic evaluations.
- */
-@Service
-public class QuestionService {
+@Repository
+public class QuestionRepository {
+
+    private static final String FILE_PATH = "/questions.txt";  // Classpath path
+    private final Map<String, String> questions = new HashMap<>();
 
     // Logger for logging important events
-    private static final Logger logger = LoggerFactory.getLogger(QuestionService.class);
+    private static final Logger logger = LoggerFactory.getLogger(QuestionRepository.class);
 
-    // Pattern to identify arithmetic expressions
-    private static final Pattern ARITHMETIC_PATTERN = Pattern.compile("^[0-9+\\-*/().\\s]+$");
-
-    // Injected repository for predefined questions
-    @Autowired
-    protected QuestionRepository questionRepository;
-
-    /**
-     * Processes a question by checking if it's predefined or an arithmetic expression.
-     * It first checks the predefined questions from the repository. If the question doesn't exist, it checks
-     * if the input is an arithmetic expression and evaluates it.
-     * 
-     * @param question The question to process.
-     * @return The answer to the question or the result of the arithmetic expression.
-     * @throws InvalidQuestionException if the question is not found in the repository and is not a valid arithmetic expression.
-     */
-    public String processQuestion(String question) {
-        String trimmedQuestion = question.trim();
-        logger.info("Processing question: '{}'", trimmedQuestion);
-
-        String answer = questionRepository.getAnswer(trimmedQuestion);
-
-        // Return predefined answer if found
-        if (answer != null) {
-            logger.info("Found predefined answer: '{}'", answer);
-            return answer;
-        }
-
-        // If it's an arithmetic expression, evaluate it
-        if (isArithmeticExpression(trimmedQuestion)) {
-            logger.info("Detected arithmetic expression: '{}'", trimmedQuestion);
-            return evaluateExpression(trimmedQuestion);
-        }
-
-        // Throw exception if the question is not found
-        logger.warn("The question '{}' was not found in the repository.", trimmedQuestion);
-        throw new InvalidQuestionException("The question '" + trimmedQuestion + "' was not found.");
+    public QuestionRepository() {
+        logger.info("Initializing QuestionRepository...");
+        loadQuestions();
     }
 
-    /**
-     * Checks whether the input string is a valid arithmetic expression.
-     * 
-     * @param input The input string to check.
-     * @return true if the input is a valid arithmetic expression, false otherwise.
-     */
-    protected boolean isArithmeticExpression(String input) {
-        boolean isValid = ARITHMETIC_PATTERN.matcher(input).matches();
-        logger.debug("Is '{}' a valid arithmetic expression? {}", input, isValid);
-        return isValid;
+    public String getAnswer(String question) {
+        logger.debug("Getting answer for question: '{}'", question);
+        return questions.get(question.toLowerCase());
     }
 
-    /**
-     * Evaluates the given arithmetic expression using GraalVM's JavaScript engine.
-     * 
-     * @param expression The arithmetic expression to evaluate.
-     * @return The result of the evaluated expression as a string.
-     * @throws ArithmeticEvaluationException if the expression is invalid and cannot be evaluated.
-     */
-    protected String evaluateExpression(String expression) {
-        try (Context context = Context.create()) {
-            logger.info("Evaluating arithmetic expression: '{}'", expression);
-            // Evaluate the expression in JavaScript
-            Value result = context.eval("js", expression);
-
-            // Check if the result is null
-            if (result.isNull()) {
-                logger.error("Evaluation returned null for expression: '{}'", expression);
-                throw new ArithmeticEvaluationException("Invalid arithmetic expression: " + expression);
+    protected void loadQuestions() {
+        logger.info("Loading questions from file: '{}'", FILE_PATH);
+        InputStream inputStream = null;
+        try {
+            inputStream = getClass().getResourceAsStream(FILE_PATH);
+            if (inputStream == null) {
+                logger.error("Questions file not found at path: '{}'", FILE_PATH);
+                throw new QuestionsMasterDataNotFoundException("Could not find questions file in classpath.");
             }
-
-            String resultString = result.toString();
-            logger.info("Arithmetic evaluation result: '{}'", resultString);
-            return resultString;
-        } catch (Exception e) {
-            logger.error("Error evaluating the expression: '{}'", expression, e);
-            throw new ArithmeticEvaluationException("Error evaluating the expression: " + expression, e);
+            
+            String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            String[] lines = content.split("\n");
+            for (String line : lines) {
+                String[] parts = line.split("=");
+                if (parts.length == 2) {
+                    String question = parts[0].trim().toLowerCase();
+                    String answer = parts[1].trim();
+                    questions.put(question, answer);
+                    logger.debug("Loaded question-answer pair: '{}' = '{}'", question, answer);
+                } else {
+                    logger.warn("Skipping invalid line (not in key=value format): '{}'", line);
+                }
+            }
+            logger.info("Successfully loaded {} question(s).", questions.size());
+        } catch (IOException ex) {
+            logger.error("Error reading the questions file '{}'", FILE_PATH, ex);
+            throw new QuestionsMasterDataNotFoundException("Could not load questions master data", ex);
+        } finally {
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                    logger.debug("Closed input stream for file: '{}'", FILE_PATH);
+                } catch (IOException ex) {
+                    logger.warn("Error closing input stream for file: '{}'", FILE_PATH, ex);
+                }
+            }
         }
     }
 
+    public Map<String, String> getQuestions() {
+        logger.debug("Returning all loaded questions. Total: {}", questions.size());
+        return questions;
+    }
 }
