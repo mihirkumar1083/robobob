@@ -1,19 +1,26 @@
 package com.robobob.service;
 
-import org.graalvm.polyglot.*;
+import java.util.regex.Pattern;
+
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import com.robobob.exception.ArithmeticEvaluationException;
 import com.robobob.exception.InvalidQuestionException;
 import com.robobob.repository.QuestionRepository;
-
-import java.util.regex.Pattern;
 
 /**
  * Service class for processing questions and performing arithmetic evaluations.
  */
 @Service
 public class QuestionService {
+
+    // Logger for logging important events
+    private static final Logger logger = LoggerFactory.getLogger(QuestionService.class);
 
     // Pattern to identify arithmetic expressions
     private static final Pattern ARITHMETIC_PATTERN = Pattern.compile("^[0-9+\\-*/().\\s]+$");
@@ -33,19 +40,24 @@ public class QuestionService {
      */
     public String processQuestion(String question) {
         String trimmedQuestion = question.trim();
+        logger.info("Processing question: '{}'", trimmedQuestion);
+
         String answer = questionRepository.getAnswer(trimmedQuestion);
 
         // Return predefined answer if found
         if (answer != null) {
+            logger.info("Found predefined answer: '{}'", answer);
             return answer;
         }
 
         // If it's an arithmetic expression, evaluate it
         if (isArithmeticExpression(trimmedQuestion)) {
+            logger.info("Detected arithmetic expression: '{}'", trimmedQuestion);
             return evaluateExpression(trimmedQuestion);
         }
 
         // Throw exception if the question is not found
+        logger.warn("The question '{}' was not found in the repository.", trimmedQuestion);
         throw new InvalidQuestionException("The question '" + trimmedQuestion + "' was not found.");
     }
 
@@ -56,7 +68,9 @@ public class QuestionService {
      * @return true if the input is a valid arithmetic expression, false otherwise.
      */
     protected boolean isArithmeticExpression(String input) {
-        return ARITHMETIC_PATTERN.matcher(input).matches();
+        boolean isValid = ARITHMETIC_PATTERN.matcher(input).matches();
+        logger.debug("Is '{}' a valid arithmetic expression? {}", input, isValid);
+        return isValid;
     }
 
     /**
@@ -68,16 +82,21 @@ public class QuestionService {
      */
     protected String evaluateExpression(String expression) {
         try (Context context = Context.create()) {
+            logger.info("Evaluating arithmetic expression: '{}'", expression);
             // Evaluate the expression in JavaScript
             Value result = context.eval("js", expression);
 
             // Check if the result is null
-           if (result.isNull()) {
+            if (result.isNull()) {
+                logger.error("Evaluation returned null for expression: '{}'", expression);
                 throw new ArithmeticEvaluationException("Invalid arithmetic expression: " + expression);
             }
 
-            return result.toString();
+            String resultString = result.toString();
+            logger.info("Arithmetic evaluation result: '{}'", resultString);
+            return resultString;
         } catch (Exception e) {
+            logger.error("Error evaluating the expression: '{}'", expression, e);
             throw new ArithmeticEvaluationException("Error evaluating the expression: " + expression, e);
         }
     }
