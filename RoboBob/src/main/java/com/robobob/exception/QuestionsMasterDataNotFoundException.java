@@ -8,4 +8,9 @@ public class QuestionsMasterDataNotFoundException extends RuntimeException {
     public QuestionsMasterDataNotFoundException(String message, Throwable cause) {
         super(message, cause);
     }
+    
+    public QuestionsMasterDataNotFoundException(String message) {
+        super(message);
+    }
+
 }
