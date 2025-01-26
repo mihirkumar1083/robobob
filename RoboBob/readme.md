@@ -11,8 +11,8 @@ RoboBob is a children's mathematics robot app that can respond to predefined que
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-repo/robobob-app.git
-cd robobob-app
+git clone https://github.com/mihirkumar1083/robobob.git
+cd RoboBob
 
 mvn clean install
 mvn test
